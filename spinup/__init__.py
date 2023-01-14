@@ -23,3 +23,6 @@ from spinup.utils.logx import Logger, EpochLogger
 
 # Version
 from spinup.version import __version__
+
+# Custom Envs
+import pybullet_envs
