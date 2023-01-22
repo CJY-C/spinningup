@@ -117,8 +117,9 @@ def run_policy(env, get_action, max_ep_len=None, num_episodes=100, render=True):
         "page on Experiment Outputs for how to handle this situation."
 
     logger = EpochLogger()
-    print("Env name:", env.spec.id)
-    if "BulletEnv" in env.spec.id or "SimpleDriving" in env.spec.id:
+    if env.spec is not None and ("BulletEnv" in env.spec.id or "SimpleDriving" in env.spec.id):
+       print("Env spec:", env.spec)
+       print("Env name:", env.spec.id)
        env = gym.make(env.spec.id)
        if render: # pybullet envs have to call env.render before env.reset
         env.render() 
@@ -142,6 +143,7 @@ def run_policy(env, get_action, max_ep_len=None, num_episodes=100, render=True):
     logger.log_tabular('EpRet', with_min_and_max=True)
     logger.log_tabular('EpLen', average_only=True)
     logger.dump_tabular()
+    env.close()
 
 
 if __name__ == '__main__':
