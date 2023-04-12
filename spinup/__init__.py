@@ -18,7 +18,7 @@ from spinup.algos.pytorch.sac.sac import sac as sac_pytorch
 from spinup.algos.pytorch.td3.td3 import td3 as td3_pytorch
 from spinup.algos.pytorch.trpo.trpo import trpo as trpo_pytorch
 from spinup.algos.pytorch.vpg.vpg import vpg as vpg_pytorch
-from spinup.algos.pytorch.dqn.dqn import dqn_simple as dqn_simple_pytorch
+# from spinup.algos.pytorch.dqn.dqn import dqn_simple as dqn_simple_pytorch
 from spinup.algos.pytorch.dqn.dqn import dqn_2015 as dqn_2015_pytorch
 
 # Loggers

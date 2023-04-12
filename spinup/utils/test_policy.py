@@ -9,6 +9,8 @@ from spinup.utils.logx import restore_tf_graph
 
 import gym
 
+import numpy as np
+
 
 def load_policy_and_env(fpath, itr='last', deterministic=False):
     """
@@ -105,8 +107,22 @@ def load_pytorch_policy(fpath, itr, deterministic=False):
             x = torch.as_tensor(x, dtype=torch.float32)
             action = model.act(x)
         return action
+    
+    # def ga(A, T, O):
+    #     with torch.no_grad():
+    #         action = model.act(A, T, O)
+    #     return action
+    
+    def ga(A, T, O, action_space=np.array([0, 7])):
+        action = None
+        action = model.act(A, T, O)
+        if action in action_space:
+            return action
+        else: # 有待考虑
+            return np.choose(np.random.randint(len(action_space)), action_space)
 
-    return get_action
+    return ga
+    # return get_action
 
 
 def run_policy(env, get_action, max_ep_len=None, num_episodes=100, render=True):
@@ -117,19 +133,22 @@ def run_policy(env, get_action, max_ep_len=None, num_episodes=100, render=True):
         "page on Experiment Outputs for how to handle this situation."
 
     logger = EpochLogger()
-    if env.spec is not None and ("BulletEnv" in env.spec.id or "SimpleDriving" in env.spec.id):
+    if env.spec is not None and ("BulletEnv" in env.spec.id \
+                                 or "SimpleDriving" in env.spec.id\
+                                 or "Robot" in env.spec.id):
        print("Env spec:", env.spec)
        print("Env name:", env.spec.id)
        env = gym.make(env.spec.id)
        if render: # pybullet envs have to call env.render before env.reset
         env.render() 
     o, r, d, ep_ret, ep_len, n = env.reset(), 0, False, 0, 0, 0
+    _ = {'action_space': np.array([0, 7])}
     while n < num_episodes:
         if render:
             env.render()
             time.sleep(1e-3)
 
-        a = get_action(o)
+        a = get_action(o['A'], o['T'], o['O'], _['action_space'])
         o, r, d, _ = env.step(a)
         ep_ret += r
         ep_len += 1
@@ -138,6 +157,7 @@ def run_policy(env, get_action, max_ep_len=None, num_episodes=100, render=True):
             logger.store(EpRet=ep_ret, EpLen=ep_len)
             print('Episode %d \t EpRet %.3f \t EpLen %d'%(n, ep_ret, ep_len))
             o, r, d, ep_ret, ep_len = env.reset(), 0, False, 0, 0
+            _ = {'action_space': np.array([0, 7])}
             n += 1
 
     logger.log_tabular('EpRet', with_min_and_max=True)
