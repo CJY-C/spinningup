@@ -221,7 +221,7 @@ def dqn_2015(
   logger.setup_pytorch_saver(network.main)
 
   # 基于epsilon-greedy策略选择动作
-  def get_action(eps, A, T, O, action_space=np.array([0, 7])):
+  def get_action(eps, A, T, O, action_space=np.array([0, 1])):
     action = None
 
     if np.random.random() < eps:
@@ -235,13 +235,30 @@ def dqn_2015(
     else: 
       return np.choose(np.random.randint(len(action_space)), action_space)
 
+  # 加入动作掩码
+  def get_action_with_mask(eps, A, T, O, action_space):
+    from robotConfigDesign.envs.utils import generate_action_mask
+    action_mask = generate_action_mask(A[0], env.action_space.n, action_space)
+    action = None
+
+    if np.random.random() < eps:
+      valid_actions = np.where(action_mask == 0)[0]
+      action = np.random.choice(valid_actions)
+    else:
+      # 把torch tensor转numpy
+      masked_q_value = network.predict(A, T, O).numpy() + action_mask
+      action = np.argmax(masked_q_value)
+
+    return action
+
   # 测试模型
-  def test_agent(n=25):
+  def test_agent(n=2):
     for j in range(n):
       o, r, d, ep_ret, ep_len = test_env.reset(), 0, False, 0, 0
-      _ = {'action_space': np.array([0, 7])}
+      _ = {'action_space': np.array([0, 1])}
       while not(d or (ep_len == max_ep_len)):
-        o, r, d, _ = test_env.step(get_action(0, o['A'], o['T'], o['O'], _['action_space']))
+        o, r, d, _ = test_env.step(get_action_with_mask(0, o['A'], o['T'], o['O'], _['action_space']))
+        # o, r, d, _ = test_env.step(get_action(0, o['A'], o['T'], o['O'], _['action_space']))
         ep_ret += r
         ep_len += 1
       logger.store(TestEpRet=ep_ret, TestEpLen=ep_len)
@@ -250,6 +267,7 @@ def dqn_2015(
 
   # 开始训练
   def update(t):
+    from robotConfigDesign.envs.utils import generate_action_mask
       
     batch = replay_buffer.sample_batch(batch_size=batch_size)
     states = batch['obs']
@@ -260,10 +278,20 @@ def dqn_2015(
 
     with torch.no_grad():
       q_next = network.main(states['A'], states['T'], states['O'])
+      # 根据states['O']是状态采样集合，生成对应长度的动作掩码，generate_action_mask仅针对单个状态
+      next_q_values = network.target(next_states['A'], next_states['T'], next_states['O'])
+      # print([a for a in next_states['A']])
+      action_mask = torch.Tensor([generate_action_mask(a, env.action_space.n) for a in next_states['A']])
+      masked_next_q_values = next_q_values + action_mask
+
       q_next[range(len(q_next)), actions] = (
         rewards + ~dones * gamma * 
-        torch.max(network.target(next_states['A'], next_states['T'], next_states['O']), dim=1).values
+        torch.max(masked_next_q_values, dim=1).values
       )
+      # q_next[range(len(q_next)), actions] = (
+      #   rewards + ~dones * gamma * 
+      #   torch.max(network.target(next_states['A'], next_states['T'], next_states['O']), dim=1).values
+      # )
     q_next = q_next.gather(1, actions.reshape(batch_size, 1))
 
     q_pred = network.main(states['A'], states['T'], states['O']).gather(1, actions.reshape(batch_size,1))
@@ -280,7 +308,7 @@ def dqn_2015(
   start_time = time.time()
   # env.render()
   o, r, d, ep_ret, ep_len = env.reset(), 0, False, 0, 0
-  _ = {'action_space': np.array([0, 7])}
+  _ = {'action_space': np.array([0, 1])}
   total_steps = steps_per_epoch * epochs
 
   # 主循环：在环境中收集经验，并在每个epoch中更新/记录
@@ -290,7 +318,8 @@ def dqn_2015(
       epsilon = epsilon_end
     logger.store(Epsilon=epsilon)
     # write.add_scalar('Epsilon', epsilon, t)
-    a = get_action(epsilon, o['A'], o['T'], o['O'], _['action_space'])
+    a = get_action_with_mask(epsilon, o['A'], o['T'], o['O'], _['action_space'])
+    # a = get_action(epsilon, o['A'], o['T'], o['O'], _['action_space'])
 
     o2, r, d, _ = env.step(a)
     ep_ret += r
@@ -302,7 +331,7 @@ def dqn_2015(
     if d or (ep_len == max_ep_len):
       logger.store(EpRet=ep_ret, EpLen=ep_len)
       o, r, d, ep_ret, ep_len = env.reset(), 0, False, 0, 0
-      _ = {'action_space': np.array([0, 7])}
+      _ = {'action_space': np.array([0, 1])}
 
     if t % update_freq == 0:
       network.target_update()

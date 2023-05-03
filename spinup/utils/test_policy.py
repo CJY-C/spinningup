@@ -6,6 +6,7 @@ import tensorflow as tf
 import torch
 from spinup import EpochLogger
 from spinup.utils.logx import restore_tf_graph
+from robotConfigDesign.envs import RobotConfigDesignEnv
 
 import gym
 
@@ -113,13 +114,15 @@ def load_pytorch_policy(fpath, itr, deterministic=False):
     #         action = model.act(A, T, O)
     #     return action
     
-    def ga(A, T, O, action_space=np.array([0, 7])):
+    def ga(A, T, O, action_space=np.array([0, 1])):
         action = None
         action = model.act(A, T, O)
+        print('predict action: ', action)
         if action in action_space:
             return action
         else: # 有待考虑
-            return np.choose(np.random.randint(len(action_space)), action_space)
+            return 1
+            # return np.choose(np.random.randint(len(action_space)), action_space)
 
     return ga
     # return get_action
@@ -142,7 +145,7 @@ def run_policy(env, get_action, max_ep_len=None, num_episodes=100, render=True):
        if render: # pybullet envs have to call env.render before env.reset
         env.render() 
     o, r, d, ep_ret, ep_len, n = env.reset(), 0, False, 0, 0, 0
-    _ = {'action_space': np.array([0, 7])}
+    _ = {'action_space': np.array([0, 1])}
     while n < num_episodes:
         if render:
             env.render()
@@ -157,7 +160,7 @@ def run_policy(env, get_action, max_ep_len=None, num_episodes=100, render=True):
             logger.store(EpRet=ep_ret, EpLen=ep_len)
             print('Episode %d \t EpRet %.3f \t EpLen %d'%(n, ep_ret, ep_len))
             o, r, d, ep_ret, ep_len = env.reset(), 0, False, 0, 0
-            _ = {'action_space': np.array([0, 7])}
+            _ = {'action_space': np.array([0, 1])}
             n += 1
 
     logger.log_tabular('EpRet', with_min_and_max=True)

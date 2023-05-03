@@ -44,6 +44,25 @@ def combined_shape(length: int, shape=None):
     return (length, shape) if np.isscalar(shape) else (length, *shape)
 
 
+def count_vars(module):
+    '''
+    计算网络权重参数的数量
+
+    参数 
+    ---
+    module: torch.nn.module 的实例
+
+    返回值 
+    ---
+    权重参数个数
+    '''
+    return sum([np.prod(p.shape) for p in module.parameters()])
+
+
+def copy_operation(scope1, scope2):
+    pass
+
+
 def mlp(
     sizes: list,
     activation=nn.ReLU,
@@ -77,25 +96,6 @@ def mlp(
     return nn.Sequential(*layers)
 
 
-def count_vars(module):
-    '''
-    计算网络权重参数的数量
-
-    参数 
-    ---
-    module: torch.nn.module 的实例
-
-    返回值 
-    ---
-    权重参数个数
-    '''
-    return sum([np.prod(p.shape) for p in module.parameters()])
-
-
-def copy_operation(scope1, scope2):
-    pass
-
-
 class QNet(nn.Module):
     '''
     ## 网络类
@@ -112,7 +112,7 @@ class QNet(nn.Module):
         self._conv_O = nn.Conv3d(in_channels=1, out_channels=16, kernel_size=3, stride=1, padding=1)
         self._maxPool = nn.MaxPool3d(kernel_size=3, stride=3, padding=0)
   
-        self._ob_n = 64 * 3
+        self._ob_n = 64 * 2 + 16 # 有待探索
         
         self._ac_n = action_space.n if isinstance(
             action_space, gym.spaces.Discrete) else action_space.shape[0]
@@ -129,6 +129,10 @@ class QNet(nn.Module):
         # print(A.shape, T.shape, O.shape)
         x = torch.cat([A, T, O], dim=1)
         return self.model(torch.Tensor(x))
+    
+    def predict(self, A, T, O):
+        with torch.no_grad():
+            return self.forward(A, T, O)
 
     def act(self, A, T, O):
         with torch.no_grad():
@@ -152,6 +156,9 @@ class DQN_2015:
 
     def target_update(self):
         self.target.load_state_dict(self.main.state_dict())
+    
+    def predict(self, A, T, O):
+        return self.main.predict(A, T, O)
 
     def act(self, A, T, O):
         return self.main.act(A, T, O)
@@ -165,5 +172,15 @@ if __name__ == '__main__':
     print(env.action_space.shape is None)
     print(combined_shape(10, ()))
     print(combined_shape(10, None))
+    conv_O = nn.Conv3d(in_channels=1, out_channels=16, kernel_size=3, stride=1, padding=1)
+    maxPool = nn.MaxPool3d(kernel_size=3, stride=3, padding=0)
+    O = env.reset()['O']
+    print(O.shape)
+    O = F.relu(conv_O(torch.Tensor(O).unsqueeze(1)))
+    print(O.shape)
+    O = maxPool(O)
+    print(O.shape)
+    O = O.view(O.size(0), -1)
+    print(O.shape)
 
     qnet = QNet(env.observation_space, env.action_space, [64, 64])
