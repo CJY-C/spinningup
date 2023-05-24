@@ -5,15 +5,11 @@ import gym
 import time
 import spinup.algos.pytorch.dqn.core as core
 from spinup.utils.logx import EpochLogger
-# from spinup.utils.mpi_pytorch import setup_pytorch_for_mpi, sync_params, mpi_avg_grads
-# from spinup.utils.mpi_tools import mpi_fork, mpi_avg, proc_id, mpi_statistics_scalar, num_procs
-
-# from torch.utils.tensorboard import SummaryWriter 
-# write = SummaryWriter("/home/masa/learning/rl/undergraduate/cjy/robot_design_sythesis/test/algo/tb/")
 
 
 import gc
 import logging
+# TODO: 日志输出位置自行修改
 LOGGING_PATH = "/home/masa/learning/rl/undergraduate/cjy/robot_design_sythesis/test/algo/check.log"
 logging.basicConfig(format='%(asctime)s-%(levelname)s: %(message)s', filename=LOGGING_PATH, level=logging.INFO)
 
@@ -258,12 +254,9 @@ def dqn_2015(
       _ = {'action_space': np.array([0, 1])}
       while not(d or (ep_len == max_ep_len)):
         o, r, d, _ = test_env.step(get_action_with_mask(0, o['A'], o['T'], o['O'], _['action_space']))
-        # o, r, d, _ = test_env.step(get_action(0, o['A'], o['T'], o['O'], _['action_space']))
         ep_ret += r
         ep_len += 1
       logger.store(TestEpRet=ep_ret, TestEpLen=ep_len)
-      # write.add_scalar('TestEpRet', ep_ret, j)
-      # write.add_scalar('TestEpLen', ep_len, j)
 
   # 开始训练
   def update(t):
@@ -280,7 +273,6 @@ def dqn_2015(
       q_next = network.main(states['A'], states['T'], states['O'])
       # 根据states['O']是状态采样集合，生成对应长度的动作掩码，generate_action_mask仅针对单个状态
       next_q_values = network.target(next_states['A'], next_states['T'], next_states['O'])
-      # print([a for a in next_states['A']])
       action_mask = torch.Tensor([generate_action_mask(a, env.action_space.n) for a in next_states['A']])
       masked_next_q_values = next_q_values + action_mask
 
@@ -288,10 +280,6 @@ def dqn_2015(
         rewards + ~dones * gamma * 
         torch.max(masked_next_q_values, dim=1).values
       )
-      # q_next[range(len(q_next)), actions] = (
-      #   rewards + ~dones * gamma * 
-      #   torch.max(network.target(next_states['A'], next_states['T'], next_states['O']), dim=1).values
-      # )
     q_next = q_next.gather(1, actions.reshape(batch_size, 1))
 
     q_pred = network.main(states['A'], states['T'], states['O']).gather(1, actions.reshape(batch_size,1))
@@ -303,10 +291,8 @@ def dqn_2015(
     network.optim.step()
 
     logger.store(LossQ=loss.item())
-    # write.add_scalar('LossQ', loss.item(), t)
 
   start_time = time.time()
-  # env.render()
   o, r, d, ep_ret, ep_len = env.reset(), 0, False, 0, 0
   _ = {'action_space': np.array([0, 1])}
   total_steps = steps_per_epoch * epochs
@@ -317,9 +303,7 @@ def dqn_2015(
     if epsilon < epsilon_end:
       epsilon = epsilon_end
     logger.store(Epsilon=epsilon)
-    # write.add_scalar('Epsilon', epsilon, t)
     a = get_action_with_mask(epsilon, o['A'], o['T'], o['O'], _['action_space'])
-    # a = get_action(epsilon, o['A'], o['T'], o['O'], _['action_space'])
 
     o2, r, d, _ = env.step(a)
     ep_ret += r
@@ -358,36 +342,3 @@ def dqn_2015(
       logger.log_tabular('Epsilon', epsilon)
       logger.log_tabular('Time', time.time() - start_time)
       logger.dump_tabular()
-
-if __name__ == '__main__':
-  from robotConfigDesign.envs import RobotConfigDesignEnv
-  import os
-
-  dir = '/home/masa/learning/rl/undergraduate/cjy/robot_design_sythesis/test/algo'
-
-  envName = 'RobotConfigDesign-v0'
-  env_fn = lambda : gym.make(envName)
-
-  ac_kwargs = dict(hidden_sizes=[64, 64, 64], activation=torch.nn.LeakyReLU)
-
-  logger_kwargs = dict(output_dir=dir + '/data/' + envName[:-3] + '-v9', exp_name=envName[:-3])
-
-  dqn_2015(
-    env_fn=env_fn, 
-    ac_kwargs=ac_kwargs, 
-    seed=0,
-    steps_per_epoch=150,
-    epochs=5000, 
-    replay_size=int(1e6),
-    gamma=1,
-    epsilon_start=1,
-    epsilon_decay=1e-5,
-    epsilon_end=0.1,
-    q_lr=1e-5,
-    batch_size=int(32),
-    start_steps=1500,
-    max_ep_len=15,
-    logger_kwargs=logger_kwargs,
-    update_freq=150,
-    save_freq=int(1)
-  )

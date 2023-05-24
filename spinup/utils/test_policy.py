@@ -8,6 +8,11 @@ from spinup import EpochLogger
 from spinup.utils.logx import restore_tf_graph
 from robotConfigDesign.envs import RobotConfigDesignEnv
 
+from robotConfigDesign.envs import register
+from robotConfigDesign.envs.utils import getPath
+register.PathRegister.add_path('/home/masa/learning/rl/undergraduate/cjy/robot_design_sythesis/test/defense/envConfig.json')
+
+
 import gym
 
 import numpy as np
@@ -124,7 +129,16 @@ def load_pytorch_policy(fpath, itr, deterministic=False):
             return 1
             # return np.choose(np.random.randint(len(action_space)), action_space)
 
-    return ga
+    def get_action_with_mask(A, T, O, action_space):
+        from robotConfigDesign.envs.utils import generate_action_mask
+        action_mask = generate_action_mask(A[0], env.action_space.n, action_space)
+        action = None
+        # 把torch tensor转numpy
+        masked_q_value = model.predict(A, T, O).numpy() + action_mask
+        action = np.argmax(masked_q_value)
+        return action
+
+    return get_action_with_mask
     # return get_action
 
 
